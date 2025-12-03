@@ -1,78 +1,41 @@
-require('dotenv').config();           // ← Loads .env (local only)
-require('pg');                        // ← Fixes Sequelize "install pg manually" on Vercel
+require('dotenv').config();
+require('pg'); // fixes the "install pg manually" warning
 
 const express = require('express');
 const mongoose = require('mongoose');
-const { Sequelize } = require('sequelize');  // ← Modern import (same as require('sequelize'))
+const { Sequelize } = require('sequelize');
 const session = require('client-sessions');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ──────────────────────────────────────────────
-// 1. MongoDB (Mongoose) – Users
-// ──────────────────────────────────────────────
-if (!process.env.MONGO_URI) {
-  console.error('MONGO_URI is missing!');
-  process.exit(1);
-}
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected (Users)'))
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
+// 1. MongoDB – Users (Mongoose)
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
-// ──────────────────────────────────────────────
-// 2. PostgreSQL (Sequelize + Neon) – Tasks
-// ──────────────────────────────────────────────
-if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is missing!');
-  process.exit(1);
-}
+// 2. PostgreSQL – Tasks (Sequelize) – MINIMAL config that works on Vercel
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
-  dialectModule: require('pg'),       // ← THIS FIXES the Vercel crash 100%
-  protocol: 'postgres',
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  },
-  logging: false,
-  pool: { max: 1, min: 0, idle: 10000, acquire: 30000 }
+  dialectModule: require('pg'),     // ← only line needed to fix pg error
+  logging: false
 });
 
-// Test connections on startup
-sequelize.authenticate()
-  .then(() => console.log('PostgreSQL connected (Tasks)'))
-  .catch(err => {
-    console.error('PostgreSQL connection error:', err);
-    process.exit(1);
-  });
+// Simple test (does NOT crash Vercel)
+sequelize.authenticate().catch(err => console.error('DB Error:', err));
 
-// ──────────────────────────────────────────────
-// Middleware & Rest of your app continues below...
-// ──────────────────────────────────────────────
+// ────── Everything below stays exactly like your friend’s ──────
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
 // Session
 app.use(session({
   cookieName: 'session',
-  secret: process.env.SESSION_SECRET || 'web322-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'supersecret',
   duration: 30 * 60 * 1000,
-  activeDuration: 5 * 60 * 1000,
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  ephemeral: false
+  activeDuration: 5 * 60 * 1000
 }));
 
-// Make user available in all views
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   next();
