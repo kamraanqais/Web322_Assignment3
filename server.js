@@ -13,9 +13,7 @@ if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('sslmode')) {
   process.env.DATABASE_URL += '?sslmode=require';
 }
 // MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB error:', err));
+require('./config/db')();
 
 // PostgreSQL
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
