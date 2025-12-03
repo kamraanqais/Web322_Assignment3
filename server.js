@@ -1,6 +1,6 @@
-// server.js - Kamraan Qais - WEB322 Assignment 3 - FINAL 100% WORKING (NO vercel.json needed)
+// server.js - Kamraan Qais - WEB322 Assignment 3
 require('dotenv').config();
-require('pg'); // fixes Sequelize on Vercel
+require('pg'); // fixes the "install pg manually" warning
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -11,34 +11,30 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// === DATABASE CONNECTIONS ===
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB error:', err));
+// 1. MongoDB – Users (Mongoose)
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
+// 2. PostgreSQL – Tasks (Sequelize) – MINIMAL config that works on Vercel
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
-  dialectModule: require('pg'),
+  dialectModule: require('pg'),     // ← only line needed to fix pg error
   logging: false
 });
 
-sequelize.authenticate()
-  .then(() => console.log('PostgreSQL connected'))
-  .catch(err => console.log('PostgreSQL error:', err));
+// Simple test (does NOT crash Vercel)
+sequelize.authenticate().catch(err => console.error('DB Error:', err));
 
-// === MIDDLEWARE ===
+// ────── Everything below stays exactly like your friend’s ──────
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
+// Session
 app.use(session({
   cookieName: 'session',
-  secret: process.env.SESSION_SECRET || 'kamraan-web322-secret-2025',
+  secret: process.env.SESSION_SECRET || 'supersecret',
   duration: 30 * 60 * 1000,
-  activeDuration: 5 * 60 * 1000,
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production'
+  activeDuration: 5 * 60 * 1000
 }));
 
 app.use((req, res, next) => {

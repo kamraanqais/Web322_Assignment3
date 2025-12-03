@@ -9,18 +9,12 @@ router.get('/register', (req, res) => {
   res.render('register', { error: null, username: '', email: '' });
 });
 
-// POST Register — THIS NEVER SHOWS "OOPS" AGAIN
+// POST Register
 router.post('/register', async (req, res) => {
-  let { username, email, password, confirmPassword } = req.body;
+  const { username, email, password, confirmPassword } = req.body;
 
-  // Trim inputs
-  username = (username || '').trim();
-  email = (email || '').toLowerCase().trim();
-  password = (password || '');
-  confirmPassword = (confirmPassword || '');
-
-  // Validation
-  if (!username || !email || !password || !confirmPassword) {
+  // Basic validation
+  if (!username || !email || !password) {
     return res.render('register', { error: 'All fields are required', username, email });
   }
   if (password !== confirmPassword) {
@@ -31,37 +25,20 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    // Check if user exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
-    });
-
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      return res.render('register', { error: 'Username or email already taken', username, email });
+      return res.render('register', { error: 'User already exists', username, email });
     }
 
-    // Hash password (bcryptjs — works perfectly on Vercel)
-    const hashedPassword = bcrypt.hashSync(password, 10);
+    const hashedPassword = await require('bcryptjs').hash(password, 10);
 
-    // Save user
-    await User.create({
-      username,
-      email,
-      password: hashedPassword
-    });
+    const newUser = new User({ username, email, password: hashedPassword });
+    await newUser.save();
 
-    // SUCCESS → go to login
-    return res.redirect('/auth/login?success=Account created! Please login.');
-
+    res.redirect('/auth/login?success=Registered successfully! Please login.');
   } catch (err) {
-    console.error('REGISTER ERROR:', err.message || err);
-
-    // THIS IS THE KEY: always send a proper error message, never let it fall to generic "Oops"
-    return res.render('register', {
-      error: 'Registration failed — please try again in a few seconds.',
-      username,
-      email
-    });
+    console.error('Register error:', err);
+    res.render('register', { error: 'Registration failed. Try again.', username, email });
   }
 });
 
