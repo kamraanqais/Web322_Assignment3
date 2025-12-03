@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "name": "WEB322 Assignment 3 - Kamraan Qais",
   "builds": [
     {
       "src": "server.js",
