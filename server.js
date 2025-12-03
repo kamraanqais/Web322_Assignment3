@@ -15,23 +15,32 @@ if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('sslmode')) {
 // MongoDB
 require('./config/db')();
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
-  protocol: 'postgres',
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
+// FINAL VERCEL + NEON WORKING CODE — COPY 100%
+let sequelize;
+if (process.env.DATABASE_URL) {
+  sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: 'postgres',
+    protocol: 'postgres',
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    },
+    logging: false,
+    define: {
+      timestamps: false
+    },
+    pool: {
+      max: 1,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
     }
-  },
-  logging: false,
-  pool: {
-    max: 1,
-    min: 0,
-    idle: 10000,
-    acquire: 30000
-  }
-});
+  });
+} else {
+  throw new Error('DATABASE_URL is missing!');
+}
 
 sequelize.authenticate()
   .then(() => console.log('Connected to Neon PostgreSQL'))
