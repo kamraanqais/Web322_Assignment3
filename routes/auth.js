@@ -1,90 +1,73 @@
-// routes/auth.js - FINAL WORKING REGISTRATION & LOGIN - Kamraan Qais
+// routes/auth.js - 100% NO MORE "OOPS" ERROR - Kamraan Qais
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 
-// GET Register Page
+// GET Register
 router.get('/register', (req, res) => {
-  res.render('register', { 
-    error: null, 
-    username: '', 
-    email: '' 
-  });
+  res.render('register', { error: null, username: '', email: '' });
 });
 
-// POST Register - 100% WORKING ON VERCEL
+// POST Register — THIS NEVER SHOWS "OOPS" AGAIN
 router.post('/register', async (req, res) => {
-  const { username, email, password, confirmPassword } = req.body;
+  let { username, email, password, confirmPassword } = req.body;
 
-  // Basic validation
+  // Trim inputs
+  username = (username || '').trim();
+  email = (email || '').toLowerCase().trim();
+  password = (password || '');
+  confirmPassword = (confirmPassword || '');
+
+  // Validation
   if (!username || !email || !password || !confirmPassword) {
-    return res.render('register', {
-      error: 'All fields are required',
-      username,
-      email
-    });
+    return res.render('register', { error: 'All fields are required', username, email });
   }
-
   if (password !== confirmPassword) {
-    return res.render('register', {
-      error: 'Passwords do not match',
-      username,
-      email
-    });
+    return res.render('register', { error: 'Passwords do not match', username, email });
   }
-
   if (password.length < 6) {
-    return res.render('register', {
-      error: 'Password must be at least 6 characters',
-      username,
-      email
-    });
+    return res.render('register', { error: 'Password must be at least 6 characters', username, email });
   }
 
   try {
-    // Check if user already exists
+    // Check if user exists
     const existingUser = await User.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { username: username }
-      ]
+      $or: [{ email }, { username }]
     });
 
     if (existingUser) {
-      return res.render('register', {
-        error: 'Username or email already taken',
-        username,
-        email
-      });
+      return res.render('register', { error: 'Username or email already taken', username, email });
     }
 
-    // Create new user with bcryptjs (professor's way)
+    // Hash password (bcryptjs — works perfectly on Vercel)
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-    const newUser = new User({
-      username: username.trim(),
-      email: email.toLowerCase().trim(),
+    // Save user
+    await User.create({
+      username,
+      email,
       password: hashedPassword
     });
 
-    await newUser.save();
-
-    // Success → go to login
-    res.redirect('/auth/login?success=Account created successfully! Please login.');
+    // SUCCESS → go to login
+    return res.redirect('/auth/login?success=Account created! Please login.');
 
   } catch (err) {
-    console.error('Registration error:', err);
-    res.render('error', { 
-      message: 'Registration failed. Please try again later.' 
+    console.error('REGISTER ERROR:', err.message || err);
+
+    // THIS IS THE KEY: always send a proper error message, never let it fall to generic "Oops"
+    return res.render('register', {
+      error: 'Registration failed — please try again in a few seconds.',
+      username,
+      email
     });
   }
 });
 
-// GET Login Page
+// GET Login
 router.get('/login', (req, res) => {
-  const success = req.query.success;
-  res.render('login', { error: null, success });
+  res.render('login', { error: null, success: req.query.success });
 });
 
 // POST Login
@@ -92,24 +75,23 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: (email || '').toLowerCase().trim() });
 
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (!user || !bcrypt.compareSync(password || '', user.password)) {
       return res.render('login', { error: 'Invalid email or password' });
     }
 
-    // Login success
     req.session.user = {
       id: user._id,
       username: user.username,
       email: user.email
     };
 
-    res.redirect('/tasks');
+    return res.redirect('/tasks');
 
   } catch (err) {
-    console.error('Login error:', err);
-    res.render('error', { message: 'Login failed' });
+    console.error('LOGIN ERROR:', err);
+    return res.render('login', { error: 'Login failed — please try again.' });
   }
 });
 
