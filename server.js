@@ -15,7 +15,6 @@ if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('sslmode')) {
 // MongoDB
 require('./config/db')();
 
-// PostgreSQL
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   protocol: 'postgres',
@@ -25,7 +24,13 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       rejectUnauthorized: false
     }
   },
-  logging: false
+  logging: false,
+  pool: {
+    max: 1,
+    min: 0,
+    idle: 10000,
+    acquire: 30000
+  }
 });
 
 sequelize.authenticate()
