@@ -1,24 +1,39 @@
-// server.js — FINAL VERCEL + NEON WORKING VERSION
-const express = require('express');
-const path = require('path');
-const dotenv = require('dotenv');
-const session = require('client-sessions');
-const mongoose = require('mongoose');
-const { neon } = require('@neondatabase/serverless');
+require('dotenv').config();           // ← Loads .env (local only)
+require('pg');                        // ← Fixes Sequelize "install pg manually" on Vercel
 
-dotenv.config();
+const express = require('express');
+const mongoose = require('mongoose');
+const { Sequelize } = require('sequelize');  // ← Modern import (same as require('sequelize'))
+const session = require('client-sessions');
+const path = require('path');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MongoDB for users (Mongoose)
+// ──────────────────────────────────────────────
+// 1. MongoDB (Mongoose) – Users
+// ──────────────────────────────────────────────
+if (!process.env.MONGO_URI) {
+  console.error('MONGO_URI is missing!');
+  process.exit(1);
+}
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB error:', err));
+  .then(() => console.log('MongoDB connected (Users)'))
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });
 
-// Neon SQL for tasks (no Sequelize — direct driver)
+// ──────────────────────────────────────────────
+// 2. PostgreSQL (Sequelize + Neon) – Tasks
+// ──────────────────────────────────────────────
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL is missing!');
+  process.exit(1);
+}
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
-  dialectModule: require('pg'),  // ← THIS LINE FIXES THE PG PACKAGE ERROR
+  dialectModule: require('pg'),       // ← THIS FIXES the Vercel crash 100%
   protocol: 'postgres',
   dialectOptions: {
     ssl: {
@@ -27,43 +42,39 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
     }
   },
   logging: false,
-  pool: {
-    max: 1,  // Vercel serverless limit
-    min: 0,
-    idle: 10000,
-    acquire: 30000
-  }
+  pool: { max: 1, min: 0, idle: 10000, acquire: 30000 }
 });
 
-// Create tasks table (if not exists)
-sql`CREATE TABLE IF NOT EXISTS tasks (
-  id SERIAL PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  "dueDate" DATE,
-  status VARCHAR(20) DEFAULT 'pending',
-  "userId" VARCHAR(255) NOT NULL,
-  "createdAt" TIMESTAMP DEFAULT NOW(),
-  "updatedAt" TIMESTAMP DEFAULT NOW()
-)`.then(() => console.log('Neon tasks table ready'));
+// Test connections on startup
+sequelize.authenticate()
+  .then(() => console.log('PostgreSQL connected (Tasks)'))
+  .catch(err => {
+    console.error('PostgreSQL connection error:', err);
+    process.exit(1);
+  });
 
-// Middleware
+// ──────────────────────────────────────────────
+// Middleware & Rest of your app continues below...
+// ──────────────────────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 
+// Session
 app.use(session({
   cookieName: 'session',
-  secret: process.env.SESSION_SECRET || 'supersecret123',
+  secret: process.env.SESSION_SECRET || 'web322-secret-key-change-in-production',
   duration: 30 * 60 * 1000,
   activeDuration: 5 * 60 * 1000,
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production'
+  secure: process.env.NODE_ENV === 'production',
+  ephemeral: false
 }));
 
+// Make user available in all views
 app.use((req, res, next) => {
-  res.locals.user = req.session?.user || null;
+  res.locals.user = req.session.user || null;
   next();
 });
 
